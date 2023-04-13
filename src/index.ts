@@ -31,9 +31,11 @@ app.get("/ping", async (req: Request, res: Response) => {
 
 app.get("/bands", async (req: Request, res: Response) => {
     try {
-        const result = await db.raw(`
-            SELECT * FROM bands;
-        `)
+        const result = await db("bands")
+
+        // const result = await db.raw(`
+        //     SELECT * FROM bands;
+        // `)
 
         res.status(200).send(result)
     } catch (error) {
@@ -71,10 +73,17 @@ app.post("/bands", async (req: Request, res: Response) => {
             throw new Error("'id' e 'name' devem possuir no mínimo 1 caractere")
         }
 
-        await db.raw(`
-            INSERT INTO bands (id, name)
-            VALUES ("${id}", "${name}");
-        `)
+        const  newBand = {
+            id: id,
+            name: name
+        }
+
+        await db.insert(newBand).into("bands");
+
+        // await db.raw(`
+        //     INSERT INTO bands (id, name)
+        //     VALUES ("${id}", "${name}");
+        // `)
 
         res.status(200).send("Banda cadastrada com sucesso")
     } catch (error) {
@@ -125,20 +134,28 @@ app.put("/bands/:id", async (req: Request, res: Response) => {
             }
         }
 
-        const [ band ] = await db.raw(`
-            SELECT * FROM bands
-            WHERE id = "${idToEdit}";
-        `) // desestruturamos para encontrar o primeiro item do array
+        const [band] = await db.select("*").from("bands").where({id:idToEdit})
+
+        // const [ band ] = await db.raw(`
+        //     SELECT * FROM bands
+        //     WHERE id = "${idToEdit}";
+        // `) // desestruturamos para encontrar o primeiro item do array
 
         if (band) {
-            await db.raw(`
-                UPDATE bands
-                SET
-                    id = "${newId || band.id}",
-                    name = "${newName || band.name}"
-                WHERE
-                    id = "${idToEdit}";
-            `)
+            // await db.raw(`
+            //     UPDATE bands
+            //     SET
+            //         id = "${newId || band.id}",
+            //         name = "${newName || band.name}"
+            //     WHERE
+            //         id = "${idToEdit}";
+            // `)
+
+            await db.update({
+                id: newId || band.id,
+                name: newName || band.name
+            }).from("bands").where({id:idToEdit})
+
         } else {
             res.status(404)
             throw new Error("'id' não encontrada")
@@ -158,6 +175,20 @@ app.put("/bands/:id", async (req: Request, res: Response) => {
             res.send("Erro inesperado")
         }
     }
+})
+
+app.delete("/bands/:id", async (req: Request, res: Response) => {
+    
+    const idToDelete = req.params.id
+
+    const [band] = await db("bands").where({id:idToDelete})
+
+    if(!band){
+        res.status(404)
+        throw new Error("Id não encontrado");
+    } 
+    await db.delete().from("bands").where({id:idToDelete})
+    res.status(200).send(`A banda ${band.name} foi deletada!`)
 })
 
 app.post("/songs", async (req: Request, res: Response) => {
@@ -186,10 +217,18 @@ app.post("/songs", async (req: Request, res: Response) => {
             throw new Error("'id', 'name' e 'bandId' devem possuir no mínimo 1 caractere")
         }
 
-        await db.raw(`
-            INSERT INTO songs (id, name, band_id)
-            VALUES ("${id}", "${name}", "${bandId}");
-        `)
+        const newSong = {
+            id: id,
+            name: name,
+            band_id: bandId
+        }
+
+        await db.insert(newSong).into("songs")
+
+        // await db.raw(`
+        //     INSERT INTO songs (id, name, band_id)
+        //     VALUES ("${id}", "${name}", "${bandId}");
+        // `)
 
         res.status(200).send("Música cadastrada com sucesso")
     } catch (error) {
@@ -254,21 +293,29 @@ app.put("/songs/:id", async (req: Request, res: Response) => {
             }
         }
 
-        const [ song ] = await db.raw(`
-            SELECT * FROM songs
-            WHERE id = "${idToEdit}";
-        `) // desestruturamos para encontrar o primeiro item do array
+        const [song] = await db("songs").where({id:idToEdit})
+
+        // const [ song ] = await db.raw(`
+        //     SELECT * FROM songs
+        //     WHERE id = "${idToEdit}";
+        // `) // desestruturamos para encontrar o primeiro item do array
 
         if (song) {
-            await db.raw(`
-                UPDATE songs
-                SET
-                    id = "${newId || song.id}",
-                    name = "${newName || song.name}",
-                    band_id = "${newBandId || song.band_id}"
-                WHERE
-                    id = "${idToEdit}";
-            `)
+            await db.update({
+                id: newId || song.id,
+                name: newName || song.name,
+                band_id: newBandId || song.band_id
+            }).from("songs").where({id: idToEdit})
+
+            // await db.raw(`
+            //     UPDATE songs
+            //     SET
+            //         id = "${newId || song.id}",
+            //         name = "${newName || song.name}",
+            //         band_id = "${newBandId || song.band_id}"
+            //     WHERE
+            //         id = "${idToEdit}";
+            // `)
         } else {
             res.status(404)
             throw new Error("'id' não encontrada")
@@ -292,16 +339,30 @@ app.put("/songs/:id", async (req: Request, res: Response) => {
 
 app.get("/songs", async (req: Request, res: Response) => {
   try {
-      const result = await db.raw(`
-        SELECT
-          songs.id AS id,
-          songs.name AS name,
-          bands.id AS bandId,
-          bands.name AS bandName
-        FROM songs
-        INNER JOIN bands
-        ON songs.band_id = bands.id;
-      `)
+        const result = await db("songs")
+        .select(
+            "songs.id AS id",
+            "songs.name AS name",
+            "bands.id AS bandId",
+            "bands.name AS bandName"
+        )
+        .innerJoin(
+            "bands",
+            "songs.band_id",
+            "=",
+            "bands.id"
+        )
+
+    //   const result = await db.raw(`
+    //     SELECT
+    //       songs.id AS id,
+    //       songs.name AS name,
+    //       bands.id AS bandId,
+    //       bands.name AS bandName
+    //     FROM songs
+    //     INNER JOIN bands
+    //     ON songs.band_id = bands.id;
+    //   `)
       // referencie o notion do material assíncrono "Mais práticas com query builder"
       // (Seções "Apelidando com ALIAS" e "Junções com JOIN")
 
